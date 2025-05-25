@@ -25,6 +25,9 @@ public class Pop3Handler extends AbstractSocketProtocolHandler {
     Pop3State state;
     String currentLine;
 
+    // RFC1939, extended for usage of XOAUTH2
+    public static final int LINE_LENGTH_LIMIT = 4096;
+
     public Pop3Handler(Pop3CommandRegistry registry,
                        UserManager manager, Socket socket) {
         super(socket);
@@ -71,6 +74,11 @@ public class Pop3Handler extends AbstractSocketProtocolHandler {
             return;
         }
 
+        // eliminate invalid line lengths before parsing
+        if (!commandLegalSize()) {
+            return;
+        }
+
         String commandName = new StringTokenizer(currentLine, " ").nextToken().toUpperCase();
         Pop3Command command = registry.getCommand(commandName);
 
@@ -85,5 +93,13 @@ public class Pop3Handler extends AbstractSocketProtocolHandler {
         }
 
         command.execute(conn, state, currentLine);
+    }
+
+    protected boolean commandLegalSize() {
+        if (currentLine.length() > LINE_LENGTH_LIMIT) {
+            conn.println("-ERR Line too long. " + LINE_LENGTH_LIMIT + " character maximum.");
+            return false;
+        }
+        return true;
     }
 }
